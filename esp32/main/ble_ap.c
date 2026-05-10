@@ -78,7 +78,7 @@ static void build_status_packet(uint8_t pkt[STATUS_LEN])
   ap_state_t* st = ap_get_state();
 
   /* Byte 0: AP mode */
-  pkt[0] = (uint8_t)st->mode; /* local commanded state – ap_mode unreliable */
+  pkt[0] = (uint8_t)st->ap_mode; /* local commanded state – ap_mode unreliable */
 
   /* Bytes 1-2: vessel heading × 10 */
   uint16_t vhdg = (uint16_t)(st->vessel_heading * 10.0f);
@@ -96,8 +96,13 @@ static void build_status_packet(uint8_t pkt[STATUS_LEN])
   /* Byte 6: AP N2K address */
   pkt[6] = st->ap_src_addr;
 
-  /* Bytes 7-11: reserved */
-  pkt[7] = pkt[8] = pkt[9] = pkt[10] = pkt[11] = 0x00;
+  /* Bytes 7-8: wind angle */
+  uint16_t twa = (uint16_t)(st->twa * 10.0f);
+  pkt[7] = (uint8_t)(twa & 0xFF);
+  pkt[8] = (uint8_t)(twa >> 8);
+
+  /* Bytes 9-11: reserved */
+  pkt[9] = pkt[10] = pkt[11] = 0x00;
 #if 0
     printf("build_status_packet: ");
     for(int i =0; i< STATUS_LEN; i++) printf("%02x ",pkt[i]);

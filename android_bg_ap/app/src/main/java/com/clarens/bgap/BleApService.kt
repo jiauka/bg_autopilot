@@ -1,9 +1,10 @@
-package com.clarens.wearmote2
+package com.clarens.bgap
 
 import android.annotation.SuppressLint
 import android.bluetooth.*
 import android.bluetooth.le.*
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -90,6 +91,8 @@ class BleApService(private val context: Context) {
 
     /* ── Scan ─────────────────────────────────────────────────────── */
     fun connect() {
+        val s = _bleState.value
+        if (s is BleState.Scanning || s is BleState.Connecting) return
         scope.launch { scan() }
     }
 
@@ -154,8 +157,11 @@ class BleApService(private val context: Context) {
     private fun connectGatt(device: BluetoothDevice) {
         _bleState.value = BleState.Connecting
         Log.i(TAG, "Connecting GATT to ${device.address}")
-        gatt = device.connectGatt(context, false, gattCallback,
-                                   BluetoothDevice.TRANSPORT_LE)
+        @Suppress("DEPRECATION")
+        gatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+            device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+        else
+            device.connectGatt(context, false, gattCallback)
     }
 
     /* ── GATT callback ────────────────────────────────────────────── */
@@ -172,10 +178,10 @@ class BleApService(private val context: Context) {
                     cmdChr    = null
                     statusChr = null
                     _bleState.value = BleState.Disconnected
-                    // Auto-reconnect after 3 s
+                    // Auto-reconnect after 3 s, only if not already scanning
                     scope.launch {
                         delay(3_000)
-                        scan()
+                        if (_bleState.value is BleState.Disconnected) scan()
                     }
                 }
             }
@@ -200,19 +206,55 @@ class BleApService(private val context: Context) {
                 return
             }
 
-            /* Enable notifications on STATUS characteristic */
-            gatt.setCharacteristicNotification(statusChr, true)
-            val cccd = statusChr!!.getDescriptor(CCCD_UUID)
-            cccd?.let {
-                it.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                gatt.writeDescriptor(it)
-            }
-
             _bleState.value = BleState.Connected
             Log.i(TAG, "Ready – CMD and STATUS characteristics found")
 
             /* Start command dispatch loop */
             scope.launch { commandDispatcher() }
+
+            /* Enable notifications — delayed slightly for Android 5.x BLE stack stability */
+            scope.launch {
+                delay(300)
+                gatt.setCharacteristicNotification(statusChr!!, true)
+                val cccd = statusChr!!.getDescriptor(CCCD_UUID)
+                if (cccd == null) {
+                    Log.w(TAG, "CCCD descriptor not found – notifications won't work")
+                    return@launch
+                }
+                cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                val ok = gatt.writeDescriptor(cccd)
+                Log.i(TAG, "CCCD write enqueued: $ok")
+            }
+        }
+
+        override fun onDescriptorWrite(
+            gatt: BluetoothGatt,
+            descriptor: BluetoothGattDescriptor,
+            status: Int
+        ) {
+            if (descriptor.uuid == CCCD_UUID) {
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    Log.i(TAG, "Notifications enabled")
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                        // On API < 23 notifications may not fire; poll every second instead
+                        Log.i(TAG, "API<23: starting poll loop")
+                        scope.launch { pollLoop(gatt) }
+                    }
+                } else {
+                    Log.w(TAG, "CCCD write failed: $status")
+                }
+            }
+        }
+
+        override fun onCharacteristicRead(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            status: Int
+        ) {
+            if (status == BluetoothGatt.GATT_SUCCESS && characteristic.uuid == CHR_STATUS_UUID) {
+                val value = characteristic.value ?: return
+                parseStatus(value)
+            }
         }
 
         override fun onCharacteristicChanged(
@@ -220,7 +262,8 @@ class BleApService(private val context: Context) {
             characteristic: BluetoothGattCharacteristic
         ) {
             if (characteristic.uuid == CHR_STATUS_UUID) {
-                parseStatus(characteristic.value)
+                val value = characteristic.value ?: return
+                parseStatus(value)
             }
         }
 
@@ -249,16 +292,18 @@ private fun ByteArray.toHexString(): String {
 
         if (data.size < 7) return
 
-        val mode         = ApMode.from(data[0].toInt() and 0xFF)
-        val vesselHdg    = ((data[1].toInt() and 0xFF) or
-                           ((data[2].toInt() and 0xFF) shl 8)).toFloat() / 10f
-        val apHdg        = ((data[3].toInt() and 0xFF) or
-                           ((data[4].toInt() and 0xFF) shl 8)).toFloat() / 10f
-        val valid        = data[5].toInt() != 0
-        val n2kAddr      = data[6].toInt() and 0xFF
-        val twa        = ((data[7].toInt() and 0xFF) or
-                           ((data[8].toInt() and 0xFF) shl 8)).toFloat() / 10f
-        _apStatus.value = ApStatus(mode, vesselHdg, apHdg, twa,valid, n2kAddr)
+        val mode      = ApMode.from(data[0].toInt() and 0xFF)
+        val vesselHdg = ((data[1].toInt() and 0xFF) or
+                        ((data[2].toInt() and 0xFF) shl 8)).toFloat() / 10f
+        val apHdg     = ((data[3].toInt() and 0xFF) or
+                        ((data[4].toInt() and 0xFF) shl 8)).toFloat() / 10f
+        val valid     = data[5].toInt() != 0
+        val n2kAddr   = data[6].toInt() and 0xFF
+        val twa       = if (data.size >= 9)
+                            ((data[7].toInt() and 0xFF) or
+                            ((data[8].toInt() and 0xFF) shl 8)).toFloat() / 10f
+                        else 0f
+        _apStatus.value = ApStatus(mode, vesselHdg, apHdg, twa, valid, n2kAddr)
 
         if(lastMode!= mode) {
           lastMode=mode;
@@ -280,6 +325,14 @@ private fun ByteArray.toHexString(): String {
             g.writeCharacteristic(chr)
             delay(100)   /* small gap between commands */
         }
+    }
+
+    private suspend fun pollLoop(gatt: BluetoothGatt) {
+        while (_bleState.value == BleState.Connected) {
+            statusChr?.let { gatt.readCharacteristic(it) }
+            delay(1_000)
+        }
+        Log.i(TAG, "Poll loop ended")
     }
 
     fun destroy() {

@@ -39,9 +39,11 @@ typedef struct
   bool ap_status_valid;    /* True once we've received PGN 65341   */
   ap_mode_t ap_mode;       /* Mode reported by AP (PGN 65341)      */
   float ap_heading;        /* Commanded heading from AP (PGN 127237, deg) */
+    float awa;              /* Apparent wind angle */
+
   float ap_wind_heading;   /* Commanded wind heading from AP (PGN 127237, deg) */
   float vessel_heading;    /* Actual compass heading (PGN 127250, deg)    */
-  float twd;               /* Actual wind heading (PGN 127250, deg)    */
+  float twa;               /* Actual wind heading (PGN 127250, deg)    */
   uint8_t ap_src_addr;     /* N2K address the AP is responding from */
   uint32_t last_update_ms; /* esp_timer ms of last AP status update */
 } ap_state_t;

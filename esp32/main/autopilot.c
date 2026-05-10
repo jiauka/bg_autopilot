@@ -82,6 +82,8 @@ esp_err_t ap_init(void)
     .ap_status_valid = false,
     .ap_mode = AP_MODE_UNKNOWN,
     .ap_heading = 0.0f,
+    .awa = 0.0f,
+    .twa=0.0f,
     .vessel_heading = 0.0f,
     .ap_src_addr = 0xFF,
     .last_update_ms = 0,

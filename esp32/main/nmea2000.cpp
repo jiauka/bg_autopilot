@@ -29,6 +29,9 @@
 
 static const char* TAG = "N2K";
 
+static double apparentWind=-1;
+static uint32_t apparentWindU[5]={0};
+static uint16_t apparentWindUCnt=0;
 /* AP command handler registered by fake_ap (NULL when fake_ap not used) */
 static void (*s_ap_cmd_handler)(uint8_t src, uint8_t dst, const uint8_t* data, uint8_t len) = nullptr;
 
@@ -37,11 +40,25 @@ static NMEA2000_esp32_twai s_nmea2000((gpio_num_t)TWAI_TX_GPIO, (gpio_num_t)TWAI
 
 static SemaphoreHandle_t s_mutex; /* recursive */
 static uint8_t boatApMode = 0;    // from PGN65341
+static double twaAverage = 0;
+
 /* ── Helpers ─────────────────────────────────────────────────────────── */
 static inline void log_msg(const tN2kMsg& msg)
 {
   if (n2k_log_enabled())
     n2k_log_frame((uint8_t)msg.Priority, (uint32_t)msg.PGN, msg.Source, msg.Destination, msg.Data, (uint8_t)msg.DataLen);
+}
+
+/**
+ * @brief Update an approximate rolling average using an N=10 exponential filter.
+ *
+ * @param[in,out] average     Pointer to the running average value, updated in place.
+ * @param[in]     new_sample  New sample to incorporate into the average.
+ */
+static void approxRollingAverage(const int number,double* average, double new_sample)
+{
+  *average -= *average / number;
+  *average += new_sample / number;
 }
 
 /* ── RX message dispatcher ───────────────────────────────────────────── */
@@ -51,6 +68,30 @@ static void handle_msg(const tN2kMsg& msg)
   ap_state_t* st = ap_get_state();
 
   switch (msg.PGN) {
+    case PGN_SIMNET_AP_KEEPALIVE:
+      if (msg.Data[3] == 0x0a) {
+        uint16_t value = (msg.Data[5] << 8 | msg.Data[4]) & 0x0ff0;
+        uint8_t ii;                            //                  AC12 capture      / NAC-2 capture           / TP22 capture
+        if (value == 0x0000) {
+          ap_set_mode(AP_MODE_STANDBY);
+          ii = 0x00;   // STBY Mode  41,9f,00,0a,0c,00,80,00 / 41,9f,64,0a,08,00,00,00 / 41,9f,ff,0a,08,00,80,00
+        }
+        else if (value == 0x0010) {
+          ap_set_mode(AP_MODE_AUTO);
+
+          ii = 0x02;   // AUTO Mode  41,9f,00,0a,14,00,80,00 / 41,9f,64,0a,10,00,00,00 / 41,9f,ff,0a,10,00,80,00
+        }
+        else if (value == 0x0400) {        
+          ap_set_mode(AP_MODE_WIND);
+
+          ii = 0x04;   // VANE Mode  41,9f,00,0a,14,04,80,02 / 41,9f,64,0a,00,04,00,04 / 41,9f,ff,0a,10,04,80,06
+        }
+        else if (value == 0x0050) ii = 0x08;   // TRACK Mode 41,9f,00,0a,54,00,80,00 /                         / 41,9f,ff,0a,54,00,80,00
+        else if (value == 0x0110) ii = 0x01;   // NODRIFT M  41,9f,00,0a,14,01,80,00 /
+        else                      ii = 0x10;   // NFU
+        printf("HandleNMEA2000Msg PGN: %ld APmode %d\n\r", msg.PGN, ii); fflush(stdout);
+      }
+    break;
 
     case PGN_SIMNET_AP_MODE: /* 65341  – AP broadcasts mode ~1 Hz */
 
@@ -63,11 +104,11 @@ static void handle_msg(const tN2kMsg& msg)
       uint16_t a = RadToDeg((float)Angle / 10000.0) + 0.5;
         printf(" 65341 %d %d\n", boatApMode, a);
       if (boatApMode == 3) { // WIND mode
-        ap_set_mode(AP_MODE_WIND);
+        //ap_set_mode(AP_MODE_WIND);
         ap_on_heading_track(msg.Source,a);
       }
       if (boatApMode == 2) { // AUTO mode
-        ap_set_mode(AP_MODE_AUTO);
+        //ap_set_mode(AP_MODE_AUTO);
       }
 #if 0      
     if (msg.DataLen >= 5) {
@@ -153,7 +194,20 @@ static void handle_msg(const tN2kMsg& msg)
       if (s_ap_cmd_handler && msg.DataLen >= 12)
         s_ap_cmd_handler(msg.Source, msg.Destination, msg.Data, (uint8_t)msg.DataLen);
       break;
-
+    case  130306:
+      {
+    //bool ParseN2kPGN130306(const tN2kMsg& N2kMsg, unsigned char& SID, double& WindSpeed, double& WindAngle, tN2kWindReference& WindReference)
+        double windSpeed;
+        double windAngle;
+        tN2kWindReference ref;
+        unsigned char SID;
+        ParseN2kPGN130306(msg,SID,windSpeed,windAngle,ref);
+         approxRollingAverage(5,&twaAverage, RadToDeg(windAngle));
+        
+        st->twa=twaAverage;
+        printf("WIND %d [130306] %lf\n",__LINE__,twaAverage);
+      }
+      break;
     default:
       break;
   }

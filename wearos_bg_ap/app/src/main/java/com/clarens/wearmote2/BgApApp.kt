@@ -1,5 +1,6 @@
 package com.clarens.wearmote2
 
+import android.util.Log
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -20,6 +21,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.material.*
@@ -138,8 +140,12 @@ private fun MainScreen(
     val mode   = status.mode
     val isStby = mode == ApMode.STANDBY || mode == ApMode.UNKNOWN || mode == ApMode.NFU
     var heading = status.apHeading
-    var upTextColor=QuadGreen
+    var twa = status.twa
 
+    var upTextColor=QuadGreen
+    var btTextColor=Color.Blue
+
+//  Log.e("JCB","mode="+mode+" ApMode "+ApMode.toString())
     LaunchedEffect(isStby) { if (isStby) stepTen = false }
 
     val uplLabel = if (isStby) "AUTO"  else if (stepTen) "-10°" else "-1°"
@@ -147,15 +153,26 @@ private fun MainScreen(
     val btrLabel = if (isStby) "---"   else "1/10"
 
     if (mode ==ApMode.WIND) {
+      btTextColor=QuadGreen
+
       if(heading > 180 ) {
         heading=360-heading;
         upTextColor=QuadRed
       }
+      if(twa > 180 ) {
+        twa=360-twa;
+        btTextColor=QuadRed
+      }
     }
        
     val upText = if (isStby) "" else  "%.0f°".format(heading)
-    val btText = if (isStby) "" else "%.0f°".format(status.vesselHeading)
-    val btTextColor=Color.Blue
+    var btText=""
+    if(mode ==ApMode.WIND ) {
+      btText= "%.0f°".format(twa)
+    }
+    if(mode ==ApMode.AUTO ) {
+      btText ="%.0f°".format(status.vesselHeading)
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
 
@@ -247,7 +264,7 @@ private fun MainScreen(
 
         /* ── UPTEXT: desired heading / wind angle ─────────────────── */
         if (upText.isNotEmpty()) {
-            Text(
+            OutlinedText(
                 upText,
                 modifier   = Modifier.align(Alignment.TopCenter).padding(top = 6.dp),
                 color      = upTextColor,
@@ -258,7 +275,7 @@ private fun MainScreen(
 
         /* ── BTTEXT: actual vessel course / wind angle ────────────── */
         if (btText.isNotEmpty()) {
-            Text(
+            OutlinedText(
                 btText,
                 modifier   = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp),
                 color      = btTextColor,
@@ -266,6 +283,25 @@ private fun MainScreen(
                 fontWeight = FontWeight.Bold
             )
         }
+    }
+}
+
+/* ── Text with 2-pixel white outline ─────────────────────────────── */
+@Composable
+private fun OutlinedText(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color,
+    fontSize: TextUnit,
+    fontWeight: FontWeight? = null
+) {
+    val o = with(LocalDensity.current) { 2.toDp() }
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        for (dx in listOf(-o, 0.dp, o)) for (dy in listOf(-o, 0.dp, o))
+            if (dx != 0.dp || dy != 0.dp)
+                Text(text, Modifier.offset(dx, dy), color = Color.White,
+                     fontSize = fontSize, fontWeight = fontWeight)
+        Text(text, color = color, fontSize = fontSize, fontWeight = fontWeight)
     }
 }
 
