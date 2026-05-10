@@ -1,0 +1,121 @@
+menu "B&G Autopilot"
+
+    comment "NMEA 2000 / TWAI (CAN) Pins"
+
+    config BG_AP_TWAI_TX_GPIO
+        int "TWAI TX GPIO"
+        default 5 if IDF_TARGET_ESP32C3
+        default 4
+        range 0 48
+        help
+            GPIO number connected to the CAN transceiver TX input.
+            Default GPIO 4 suits ESP32-C3/C6/S3 DevKit boards with a
+            SN65HVD230 or TJA1050 transceiver on that pin.
+
+    config BG_AP_TWAI_RX_GPIO
+        int "TWAI RX GPIO"
+        default 4 if IDF_TARGET_ESP32C3
+        default 5
+        range 0 48
+        help
+            GPIO number connected to the CAN transceiver RX output.
+            Default GPIO 5 suits ESP32-C3/C6/S3 DevKit boards.
+
+    comment "Command Input Interfaces (both may be enabled simultaneously)"
+
+    config BG_AP_CMD_BLE
+        bool "Enable BLE interface (WearOS companion app)"
+        default y
+        depends on BT_NIMBLE_ENABLED
+        help
+            Accept commands over Bluetooth LE from a WearOS companion app
+            (NimBLE GATT server).  Pushes AP status via notifications.
+            Requires CONFIG_BT_ENABLED and CONFIG_BT_NIMBLE_ENABLED.
+
+    config BG_AP_CMD_SERIAL
+        bool "Enable Serial / UART interface"
+        default y
+        help
+            Accept single-character commands from a UART terminal at
+            115200 baud 8N1.
+
+    config BG_AP_CMD_JOYSTICK
+        bool "Enable BLE joystick (Magicsee R1 or compatible)"
+        default n
+        depends on BG_AP_CMD_BLE
+        help
+            Connect as BLE Central to a BLE HID joystick/remote.
+            Scans for the device by name and maps directional inputs to
+            autopilot heading adjustments (±1° and ±10°).
+            Requires BLE to be enabled.  Runs simultaneously with the
+            WearOS/PineTime GATT server on the same NimBLE stack.
+
+    config BG_AP_JOYSTICK_DEVICE_NAME
+        string "BLE joystick advertised name"
+        default "Magicsee R1"
+        depends on BG_AP_CMD_JOYSTICK
+        help
+            Exact name the joystick advertises over BLE.  Must match the
+            device name shown during BLE scanning.  Change this if your
+            remote advertises under a different name.
+    config BG_AP_FAKE_AP
+        bool "Enable fake AP simulator (no real AP on bus)"
+        default n
+        help
+            Starts a virtual Simrad AP computer on the N2K bus as device 1
+            (preferred address 0x03, name "AP Simulator").  Responds to
+            PGN 130850 commands and broadcasts the standard AP status PGNs
+            so the keypad can be tested without a real autopilot.
+            Do NOT enable when a real AP is connected.
+
+    comment "RGB Status LED (WS2812)"
+
+    config BG_AP_LED_GPIO
+        int "RGB LED GPIO (WS2812)"
+        default 8
+        range 0 48
+        help
+            GPIO connected to the WS2812 RGB status LED data line.
+            GPIO 8 is the onboard LED on ESP32-C3 and ESP32-C6 DevKit boards.
+            ESP32-S3-DevKitC-1 uses GPIO 48.
+            Red slow blink = no N2K network.
+            Green toggle on each frame = network active.
+
+    config BG_AP_LED_BRIGHTNESS
+        int "LED brightness (0-255)"
+        default 20
+        range 1 255
+        help
+            WS2812 brightness for status colours.  At full brightness (255)
+            the LED is very intense.  20 is clearly visible in daylight
+            without being blinding.
+
+    if BG_AP_CMD_SERIAL
+
+        comment "Serial Command UART Pins"
+
+        config BG_AP_UART_TX_GPIO
+            int "UART TX GPIO"
+            default 21 if IDF_TARGET_ESP32C3
+            default 16 if IDF_TARGET_ESP32C6
+            default 43 if IDF_TARGET_ESP32S3
+            default 21
+            range 0 48
+            help
+                GPIO number for UART TX (serial command output / log).
+                Board defaults: C3=21, C6=16, S3=43.
+
+        config BG_AP_UART_RX_GPIO
+            int "UART RX GPIO"
+            default 20 if IDF_TARGET_ESP32C3
+            default 17 if IDF_TARGET_ESP32C6
+            default 44 if IDF_TARGET_ESP32S3
+            default 20
+            range 0 48
+            help
+                GPIO number for UART RX (serial command input).
+                Board defaults: C3=20, C6=17, S3=44.
+
+    endif
+
+endmenu

@@ -1,0 +1,2 @@
+-keep class com.clarens.wearmote2.** { *; }
+-keepattributes *Annotation*

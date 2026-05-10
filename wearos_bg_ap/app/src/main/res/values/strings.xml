@@ -1,0 +1,23 @@
+<resources>
+  
+    <string name="app_name">MetisAP</string>
+    <!--
+    This string is used for square devices and overridden by hello_world in
+    values-round/strings.xml for round devices.
+    -->
+
+    <string name="plus_1">+1</string>
+    <string name="plus_10">+10</string>
+    <string name="minus_1">-1</string>
+    <string name="minus_10">-10</string>
+    <string name="_1_10">1/10</string>
+    <string name="auto">AUTO</string>
+    <string name="_180">180</string>
+    <string name="dashes">---</string>
+    <string name="scan">SCAN</string>
+    <string name="standby">STBY</string>
+    <string name="welcome">Welcome to MetisMote</string>
+    <string name="wind">WIND</string>
+    <string name="dots">...</string>
+
+</resources>

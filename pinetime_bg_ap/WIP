@@ -1,0 +1,68 @@
+./setup.sh   # ~5 min clone + Docker pull                                                                                                                                                                                                                   
+./build.sh                                                
+./flash_swd.sh          # or ./flash_ota.sh E4:5A:37:5C:A8:0F    
+  
+  
+adb push ./infinitime/build/src/pinetime-mcuboot-app-dfu-1.14.0.zip  /storage/0F07-B06E/
+
+openocd -f interface/stlink.cfg -f target/nrf52.cfg -c "program ./src/pinetime-app-1.14.0.bin  verify 0x00000000" -c "init; reset; exit"
+openocd -f interface/stlink.cfg -f target/nrf52.cfg -c "program ./infinitime/build/src/pinetime-app-1.14.0.bin  verify 0x00000000" -c "init; reset; exit"
+
+
+sudo systemctl stop bluetooth                                                                                                                                                                                                                               
+sudo /home/jaume/go/bin/mcumgr --conntype ble --connstring "peer_id=E4:6A:36:B6:7A:13" image upload /home/jaume/work_hobby/ticwatch/pinetime_bg_ap/infinitime/build/output/pinetime-mcuboot-app-image-1.14.0.bin
+
+sudo add-apt-repository ppa:deadsnakes/ppa                                                                                                                                                                                                                  
+sudo apt install python3.11 python3.11-venv                                                                                                                                                                                                               
+python3.11 -m venv ~/nrfutil-env                                                                                                                                                                                                                            
+~/nrfutil-env/bin/pip install nrfutil         
+python3 -m venv ~/venv-nrfutil
+source ~/venv-nrfutil/bin/activate
+
+pip3 install nrfutil
+sudo   ./flash_ota.sh E4:6A:36:B6:7A:13
+                                                                                                                                                                                                                                                                
+sudo systemctl start bluetooth
+ grep -R goota
+ 1814  ./flash_ota.sh 
+ 1815  ./flash_ota.sh F0:F5:BD:02:62:A6
+ 1816  ./flash_ota.sh F0F5BD0262A6
+ 1817  cat flash_ota.sh 
+ 1824  ./flash_ota.sh E4:6A:36:B6:7A:13
+ 1834  ./flash_ota.sh E4:6A:36:B6:7A:13
+ 1838  ./flash_ota.sh E4:6A:36:B6:7A:13
+ 1840  ./flash_ota.sh E4:6A:36:B6:7A:13
+ 1842 
+./flash_ota.sh E4:6A:36:B6:7A:13
+ 1843  ./flash_ota.sh E46A36B67A13
+ 1844  ./flash_ota.sh E4:6A:36:B6:7A:1
+ 
+
+sudo /home/jaume/go/bin/mcumgr --conntype ble --name InfiniTime -t 30 -r 3 --write-rsp image upload /home/jaume/work_hobby/ticwatch/pinetime_bg_ap/infinitime/build/output/pinetime-mcuboot-app-image-1.14.0.bin
+
+
+I need to change the UI according to pine.png
+It has 6 parts:
+Four buttons top/left, top rigth, bottom left, bottom rigth, let's call them UPL, UPR, BTL, BTR
+2 info text , one at the uppper mid, let's call it UPTEXT and another one at the bottom , let's call it BTTEXT
+
+The BTL is allways the standby button
+When the app is in STBY UPL must says "AUTO", UPR "WIND" and BTR "NAV", and UPTEXT and BTTEXT shoul be empty.
+in STBY if UPL is pressed the ap must go to AUTO mode
+in STBY if UPR is pressed the ap must go to WIND mode
+in STBY if BTR is pressed the ap must go to NAV mode
+
+in any state if BTL/STBY is pressed the ap must go STBY
+in NAV, AUTO or WIDN mode, BTR must show 1/10 and acts as +-1 o +-10 switch UPL must show -10 or -1 and  UPL +1 or +10 accroding to the +-1 or +-10 mode
+in NAV and AUTO mode, BTTEXT must show the actual boat coourse and UPTEXT the desired course
+in WIND mode, BTTEXT must show the actual wind angle and UPTEXT the desired wind angle
+
+
+
+AUTOAUTO
+The app has a stet
+
+When the app start
+
+
+

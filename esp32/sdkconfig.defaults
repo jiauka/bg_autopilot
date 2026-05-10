@@ -1,0 +1,46 @@
+# Target is NOT set here — choose with:  idf.py set-target esp32c3|esp32c6|esp32s3
+# Then run:  idf.py menuconfig  →  B&G Autopilot  to configure pins and interface.
+
+# TWAI (CAN) configuration
+CONFIG_TWAI_ISR_IN_IRAM=y
+
+# UART console (pin numbers come from the chip's hardware defaults)
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESP_CONSOLE_UART_NUM=0
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
+
+# Logging
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y
+# FreeRTOS
+CONFIG_FREERTOS_HZ=1000
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=n
+
+# Watchdog
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=10
+
+# Stack sizes
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=4096
+
+# ── Bluetooth / NimBLE (used when BG_AP_CMD_BLE is selected) ───────────
+# On ESP32-S3, this forces BLE-only mode (disables classic BT).
+# On ESP32-C3/C6 (no classic BT hardware) this setting is a no-op.
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=y
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=n
+# 3 connections: up to 2 watches (peripheral) + 1 joystick (central)
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=3
+# Persist bonds so the joystick reconnects without re-pairing
+CONFIG_BT_NIMBLE_NVS_PERSIST=y
+CONFIG_BT_NIMBLE_GATT_MAX_PROCS=4
+CONFIG_BT_CONTROLLER_MODE_BLE_ONLY=y
+CONFIG_BT_NIMBLE_LOG_LEVEL_CRITICAL=y
+CONFIG_BT_NIMBLE_LOG_LEVEL=4
+# Security Manager (required for pairing with BLE HID devices like Magicsee R1)
+CONFIG_BT_NIMBLE_SECURITY_ENABLE=y
+CONFIG_BT_NIMBLE_SM_LEGACY=y
+CONFIG_BT_NIMBLE_SM_SC=y
+
